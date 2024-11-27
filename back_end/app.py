@@ -3,11 +3,15 @@ from ards_model_generate import Logic_Model
 import torch
 
 app = Flask(__name__)
+import time
 
 # 加载预训练模型
+start_time = time.time()
 logic_model = Logic_Model()
-logic_model.load_state_dict(torch.load('ards_model.pth'))
+logic_model.load_state_dict(torch.load('ards_model.pth', map_location=torch.device('cpu')), strict=False)
 logic_model.eval()
+end_time = time.time()
+print(f"加载预训练模型耗时: {end_time - start_time} 秒")
 
 # 完整路由是 http://0.0.0.0:5000/predict
 @app.route('/predict', methods=['POST'])

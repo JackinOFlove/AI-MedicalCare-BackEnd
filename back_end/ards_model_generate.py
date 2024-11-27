@@ -75,7 +75,7 @@ class Logic_Model(nn.Module):
             relation_features = []
 
             # 修改张量大小
-            relation_feature = torch.ones(131,self.num_formula-1)
+            relation_feature = torch.ones(4,self.num_formula-1)
             for i in range(self.num_formula-1): # iterates rules
                 relation_used[str(i)]=[]
                 rule_relation_features = []
@@ -535,87 +535,88 @@ class Logic_Model(nn.Module):
         
         return cur_intensity, adjusted_predicted_time
  
-print('---------- key tunable parameters ----------')
-print('sigma = 0.1')
-print('tau = 20')
-print('batch_size = 500')
-print('lr = 0.1')
-print('pernalty C = 5')
-print('--------------------')
+if __name__ == "__main__":
+    print('---------- key tunable parameters ----------')
+    print('sigma = 0.1')
+    print('tau = 20')
+    print('batch_size = 500')
+    print('lr = 0.1')
+    print('pernalty C = 5')
+    print('--------------------')
 
-# 修改num_samples的数量
-num_samples = 524
-iter_nums = 1600
-# time_horizon = 5
-# 根据num_samples的数量修改batch_size
-# 使得num_batch是整数
-batch_size = 131
-num_batch = math.ceil(num_samples / batch_size)
+    # 修改num_samples的数量
+    num_samples = 524
+    iter_nums = 1600
+    # time_horizon = 5
+    # 根据num_samples的数量修改batch_size
+    # 使得num_batch是整数
+    batch_size = 4
+    num_batch = math.ceil(num_samples / batch_size)
 
-# 加载训练数据
-train_data = np.load('ards_train_data.npy', allow_pickle=True)
-num_train_samples = len(train_data)
-body_time_train = np.zeros((num_train_samples, 47))
-head_time_train = np.zeros((num_train_samples, 1))
-for i, entry in enumerate(train_data):
-    body_time_train[i, :] = entry['body_predicates_time']
-    head_time_train[i, :] = entry['head_predicate_time'][0]
-body_time_train = torch.from_numpy(body_time_train)
-head_time_train = torch.from_numpy(head_time_train)
+    # 加载训练数据
+    train_data = np.load('ards_train_data.npy', allow_pickle=True)
+    num_train_samples = len(train_data)
+    body_time_train = np.zeros((num_train_samples, 47))
+    head_time_train = np.zeros((num_train_samples, 1))
+    for i, entry in enumerate(train_data):
+        body_time_train[i, :] = entry['body_predicates_time']
+        head_time_train[i, :] = entry['head_predicate_time'][0]
+    body_time_train = torch.from_numpy(body_time_train)
+    head_time_train = torch.from_numpy(head_time_train)
 
-# 修改头谓词的指针10->25
-head_pred = 47
-logic_model = Logic_Model()
-torch.autograd.set_detect_anomaly(True)
-optimizer = optim.Adam([{'params':logic_model.model_parameter[head_pred]['weight']},{'params': logic_model.weight}], lr=0.01)
-prior = torch.from_numpy(np.array([0.01, 0.99]))
+    # 修改头谓词的指针10->25
+    head_pred = 47
+    logic_model = Logic_Model()
+    torch.autograd.set_detect_anomaly(True)
+    optimizer = optim.Adam([{'params':logic_model.model_parameter[head_pred]['weight']},{'params': logic_model.weight}], lr=0.01)
+    prior = torch.from_numpy(np.array([0.01, 0.99]))
 
-tau = 20 * torch.ones(1) 
-appearance = {}
-record = []
-record_single = []
-count = 0
-##### print key model information
-for iter in range(iter_nums):
-    prior = logic_model.optimize_EM_single(body_time_train, head_time_train, batch_size, head_pred, optimizer, prior, tau, num_train_samples)
-    if iter == 0:
-        prev_weight = torch.ones_like(logic_model.weight.clone())
-    else:
-        diff = torch.norm(prev_weight-logic_model.weight.clone(), p=1)
-        prev_weight = logic_model.weight.clone()
+    tau = 20 * torch.ones(1) 
+    appearance = {}
+    record = []
+    record_single = []
+    count = 0
+    ##### print key model information
+    for iter in range(iter_nums):
+        prior = logic_model.optimize_EM_single(body_time_train, head_time_train, batch_size, head_pred, optimizer, prior, tau, num_train_samples)
+        if iter == 0:
+            prev_weight = torch.ones_like(logic_model.weight.clone())
+        else:
+            diff = torch.norm(prev_weight-logic_model.weight.clone(), p=1)
+            prev_weight = logic_model.weight.clone()
 
-    if count != 0:
-        count = 0
+        if count != 0:
+            count = 0
 
-    A_m =  logic_model.weight.clone()
-    max_ind = torch.sort(A_m,descending=True)[1][:,:logic_model.k]
-    print(A_m,max_ind)
-    
-    valid = np.sort(max_ind, axis=1)  
-    for i in range(valid.shape[0]):  
-        count = 0
-        for j in range(valid.shape[1]):  
-            if valid[i, j] >= head_pred:  
-                count += 1
-                valid[i, j] = head_pred + count - 1
-
-    record.append(valid)
-    print(record)
-    print(appearance)
-
-    # stopping rule 1
-    if len(record) >= 4:
-        for i in range(-4,-1,1):
-            equal = True
-            equal = np.array_equal(record[-1],record[i])
-            if equal:
-                count += 1
-        print(count)
-        if count == 3:
-            break
+        A_m =  logic_model.weight.clone()
+        max_ind = torch.sort(A_m,descending=True)[1][:,:logic_model.k]
+        print(A_m,max_ind)
         
-    record = record[-10:]
+        valid = np.sort(max_ind, axis=1)  
+        for i in range(valid.shape[0]):  
+            count = 0
+            for j in range(valid.shape[1]):  
+                if valid[i, j] >= head_pred:  
+                    count += 1
+                    valid[i, j] = head_pred + count - 1
 
-logic_model.print_learned_rules() 
-torch.save(logic_model.state_dict(), 'ards_model.pth')
-print("模型已保存")
+        record.append(valid)
+        print(record)
+        print(appearance)
+
+        # stopping rule 1
+        if len(record) >= 4:
+            for i in range(-4,-1,1):
+                equal = True
+                equal = np.array_equal(record[-1],record[i])
+                if equal:
+                    count += 1
+            print(count)
+            if count == 3:
+                break
+            
+        record = record[-10:]
+
+    logic_model.print_learned_rules() 
+    torch.save(logic_model.state_dict(), 'ards_model.pth')
+    print("模型已保存")
