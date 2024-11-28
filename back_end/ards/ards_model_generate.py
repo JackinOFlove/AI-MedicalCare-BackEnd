@@ -629,4 +629,9 @@ if __name__ == "__main__":
         record = record[-10:]
 
     logic_model.print_learned_rules() 
-    
+    model_state = {
+    'relation': logic_model.relation,  # 保存 relation 字典
+    'model_parameter': logic_model.model_parameter  # 保存 model_parameter 字典
+    }
+    torch.save(model_state, 'ards_model.pt')
+    print("模型已保存")
