@@ -28,7 +28,7 @@ class Logic_Model(nn.Module):
         # 现在有25条体谓词，1个头谓词，设置为26
         self.num_predicate = 48
         # 我这里先设置为2
-        self.num_formula = 11
+        self.num_formula = 2
 
         self.body_predicate_set = list(np.arange(0,(self.num_predicate-1),1)) 
         self.head_predicate_set = [self.num_predicate-1] 
@@ -41,20 +41,28 @@ class Logic_Model(nn.Module):
         self.prior = torch.tensor([0.01,0.99], dtype=torch.float64, requires_grad=True)
         
         
-        self.weight = (torch.ones((self.num_formula-1), (len(self.body_predicate_set)+self.empty_pred)) * 0.000000001).double()
-        self.weight = F.normalize(self.weight, p=1, dim = 1)
-        self.weight.requires_grad = True
-
+        # 初始化权重，使用 nn.Parameter 确保这些是可学习的参数
+        self.weight = nn.Parameter((torch.ones((self.num_formula - 1), (len(self.body_predicate_set) + self.empty_pred)) * 0.000000001).double())
+        # 对权重进行归一化，重新赋值给 nn.Parameter
+        self.weight = nn.Parameter(F.normalize(self.weight, p=1, dim=1))
+        
+        # 初始化与公式相关的关系
         self.relation = {}
-        for i in range(self.num_formula-1):
-            self.relation[str(i)] = {}
-            
+        for i in range(self.num_formula - 1):
+           self.relation[str(i)] = {}
+        # 将 relation 包装为 nn.Module 的一部分
+        # self.relation = nn.ModuleDict()
+
+        # 初始化模型参数
         self.model_parameter = {}
         head_predicate_idx = self.head_predicate_set[0]
         self.model_parameter[head_predicate_idx] = {}
-        self.model_parameter[head_predicate_idx]['base'] = torch.ones(1)*0.02 
-        self.model_parameter[head_predicate_idx]['weight'] = torch.autograd.Variable((torch.ones(self.num_formula - 1) * 0.5).double(), requires_grad=True)
+        self.model_parameter[head_predicate_idx]['base'] = nn.Parameter(torch.ones(1) * 0.02)
+        self.model_parameter[head_predicate_idx]['weight'] = nn.Parameter(torch.ones(self.num_formula - 1) * 0.5)
 
+    
+    def forward(self,x):
+        return x
 
     def log_p_star(self, head_predicate_idx, t, pi, data_sample, A, add_relation = True, relation_grad = True):
         # background
@@ -107,7 +115,8 @@ class Logic_Model(nn.Module):
                             self.relation[str(i)][str(list(idx_comb[k,:]))].requires_grad = True
                             prob = self.relation[str(i)][str(list(idx_comb[k,:]))]
                         else:
-                            self.relation[str(i)][str(list(idx_comb[k,:]))] = F.normalize(torch.ones(4)*torch.tensor([1,1,1,10]), p=1, dim = 0)
+                            # 确保关系中的每个元素是 nn.Parameter 类型
+                            self.relation[str(i)][str(list(idx_comb[k,:]))] = F.normalize(torch.ones(4)*torch.tensor([1,1,1,10]), p=1, dim=0)
                             self.relation[str(i)][str(list(idx_comb[k,:]))].requires_grad = True
                             prob = self.relation[str(i)][str(list(idx_comb[k,:]))]
                         
@@ -213,9 +222,10 @@ class Logic_Model(nn.Module):
                 with torch.no_grad():
                     grad_Weight = self.weight.grad
                     self.weight -= grad_Weight * 0.0001
-                    self.weight = torch.maximum(self.weight, EPSILON)
-                    self.weight = torch.minimum(self.weight, torch.from_numpy(np.array(np.finfo(np.float32).max)))
-                    self.weight = F.normalize(self.weight, p=1, dim = 1)
+                    self.weight = nn.Parameter(torch.maximum(self.weight, EPSILON))
+                    self.weight = nn.Parameter(torch.minimum(self.weight, torch.tensor(np.finfo(np.float32).max, dtype=torch.float32)))  # 保证权重不大于浮点数最大值
+                    self.weight = nn.Parameter(F.normalize(self.weight, p=1, dim=1))
+                    self.weight = nn.Parameter(self.weight)
                    
 
         m = 1
@@ -404,7 +414,7 @@ class Logic_Model(nn.Module):
         }
 
         # 打开文件进行写入
-        with open('ards-learned_rules.txt', 'w') as f:
+        with open('/home/yunyang2/EventSequenceClustering/ards/ards-learned_rules.txt', 'w') as f:
             # 通过 print 将内容同时输出到文件和控制台
             def print_to_file(*args, **kwargs):
                 print(*args, **kwargs)  # 打印到控制台
@@ -533,7 +543,8 @@ class Logic_Model(nn.Module):
 
         adjusted_predicted_time = predicted_time + max_valid_time
         
-        return cur_intensity, adjusted_predicted_time
+        return cur_intensity, adjusted_predicted_time,self.model_parameter[self.head_predicate_set[0]]['base'],self.model_parameter[self.head_predicate_set[0]]['weight']
+ 
  
 if __name__ == "__main__":
     print('---------- key tunable parameters ----------')
@@ -618,5 +629,4 @@ if __name__ == "__main__":
         record = record[-10:]
 
     logic_model.print_learned_rules() 
-    torch.save(logic_model.state_dict(), 'ards_model.pth')
-    print("模型已保存")
+    
