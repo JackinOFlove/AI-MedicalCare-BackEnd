@@ -28,7 +28,7 @@ class Logic_Model(nn.Module):
         # 现在有25条体谓词，1个头谓词，设置为26
         self.num_predicate = 48
         # 我这里先设置为2
-        self.num_formula = 2
+        self.num_formula = 11
 
         self.body_predicate_set = list(np.arange(0,(self.num_predicate-1),1)) 
         self.head_predicate_set = [self.num_predicate-1] 

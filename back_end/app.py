@@ -10,21 +10,25 @@ import time
 
 # 加载aki模型
 start_time_aki = time.time()
+
 aki_logic_model = AKI_Logic_Model()
 aki_checkpoint = torch.load('aki/aki_model.pt', map_location=torch.device('cpu'))
 aki_logic_model.relation = aki_checkpoint['relation']
 aki_logic_model.model_parameter = aki_checkpoint['model_parameter']
 aki_logic_model.eval()
+
 end_time_aki = time.time()
 print(f"加载aki模型耗时: {end_time_aki - start_time_aki} 秒")
 
 # 加载ards模型
 start_time_ards = time.time()
+
 ards_logic_model = ARDS_Logic_Model()
 ards_checkpoint = torch.load('ards/ards_model.pt', map_location=torch.device('cpu'))
 ards_logic_model.relation = ards_checkpoint['relation']
 ards_logic_model.model_parameter = ards_checkpoint['model_parameter']
 ards_logic_model.eval()
+
 end_time_ards = time.time()
 print(f"加载ards模型耗时: {end_time_ards - start_time_ards} 秒")
 

@@ -49,8 +49,8 @@ class Logic_Model(nn.Module):
         self.prior = torch.tensor([0.01,0.99], dtype=torch.float64, requires_grad=True)
         
         
-        self.weight = (torch.ones((self.num_formula-1), (len(self.body_predicate_set)+self.empty_pred)) * 0.000000001).double()
-        self.weight = F.normalize(self.weight, p=1, dim = 1)
+        self.weight = nn.Parameter(torch.ones((self.num_formula-1), (len(self.body_predicate_set)+self.empty_pred)) * 0.000000001).double()
+        self.weight = nn.Parameter(F.normalize(self.weight, p=1, dim = 1))
         self.weight.requires_grad = True
 
         self.relation = {}
@@ -60,8 +60,11 @@ class Logic_Model(nn.Module):
         self.model_parameter = {}
         head_predicate_idx = self.head_predicate_set[0]
         self.model_parameter[head_predicate_idx] = {}
-        self.model_parameter[head_predicate_idx]['base'] = torch.ones(1)*0.02 
-        self.model_parameter[head_predicate_idx]['weight'] = torch.autograd.Variable((torch.ones(self.num_formula - 1) * 0.5).double(), requires_grad=True)
+        self.model_parameter[head_predicate_idx]['base'] = nn.Parameter(torch.ones(1)*0.02)
+        self.model_parameter[head_predicate_idx]['weight'] = nn.Parameter(torch.ones(self.num_formula - 1) * 0.5)
+
+    def forward(self,x):
+        return x
 
 
     def log_p_star(self, head_predicate_idx, t, pi, data_sample, A, add_relation = True, relation_grad = True):
@@ -221,9 +224,10 @@ class Logic_Model(nn.Module):
                 with torch.no_grad():
                     grad_Weight = self.weight.grad
                     self.weight -= grad_Weight * 0.0001
-                    self.weight = torch.maximum(self.weight, EPSILON)
-                    self.weight = torch.minimum(self.weight, torch.from_numpy(np.array(np.finfo(np.float32).max)))
-                    self.weight = F.normalize(self.weight, p=1, dim = 1)
+                    self.weight = nn.Parameter(torch.maximum(self.weight, EPSILON))
+                    self.weight = nn.Parameter(torch.minimum(self.weight, torch.tensor(np.finfo(np.float32).max, dtype=torch.float32)))  # 保证权重不大于浮点数最大值
+                    self.weight = nn.Parameter(F.normalize(self.weight, p=1, dim=1))
+                    self.weight = nn.Parameter(self.weight)
                    
 
         m = 1
